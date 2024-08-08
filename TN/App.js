@@ -1,79 +1,69 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import * as Location from 'expo-location';
-import barsAndClubs from './src/data/barsAndClubs'; // Import the bars and clubs data
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+
+import Map from './src/components/Map';  // Import Map component
+import ProfileScreen from './src/screens/ProfileScreen';
+import AuthScreen from './src/screens/AuthScreen';
+import { auth } from './src/config/firebaseconfig';
+
+const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function App() {
-  const [location, setLocation] = useState(null);
-  const [errorMsg, setErrorMsg] = useState(null);
+  const [user, setUser] = useState(null);
+  const [isLogin, setIsLogin] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setErrorMsg('Permission to access location was denied');
-        return;
-      }
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUser(user);
+    });
 
-      let location = await Location.getCurrentPositionAsync({});
-      setLocation(location.coords);
-    })();
+    return () => unsubscribe();
   }, []);
 
-  let region = {
-    latitude: 63.4305, // Trondheim coordinates
-    longitude: 10.3951,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
-  };
-
-  if (location) {
-    region = {
-      ...region,
-      latitude: location.latitude,
-      longitude: location.longitude,
-    };
+  if (!user) {
+    return (
+      <NavigationContainer>
+        <Stack.Navigator>
+          <Stack.Screen
+            name="Auth"
+            options={{ headerShown: false }}
+          >
+            {() => (
+              <AuthScreen
+                isLogin={isLogin}
+                setIsLogin={setIsLogin}
+              />
+            )}
+          </Stack.Screen>
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
   }
 
   return (
-    <View style={styles.container}>
-      <MapView style={styles.map} region={region}>
-        {location && (
-          <Marker
-            coordinate={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-            }}
-            title={"You're here"}
-          />
-        )}
+    <NavigationContainer>
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          tabBarIcon: ({ color, size }) => {
+            let iconName;
 
-        {/* Map through the barsAndClubs array and render markers */}
-        {barsAndClubs.map((place, index) => (
-          <Marker
-            key={index}
-            coordinate={{
-              latitude: place.latitude,
-              longitude: place.longitude,
-            }}
-            title={place.name}
-          />
-        ))}
-      </MapView>
-    </View>
+            if (route.name === 'Map') {
+              iconName = 'map';
+            } else if (route.name === 'Profile') {
+              iconName = 'person';
+            }
+
+            return <Ionicons name={iconName} size={size} color={color} />;
+          },
+        })}
+      >
+        <Tab.Screen name="Map" component={Map} />
+        <Tab.Screen name="Profile" component={ProfileScreen} />
+      </Tab.Navigator>
+    </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  map: {
-    width: '100%',
-    height: '100%',
-  },
-});
