@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
+import barsAndClubs from './src/data/barsAndClubs'; // Import the bars and clubs data
 
 export default function App() {
   const [location, setLocation] = useState(null);
@@ -47,6 +48,18 @@ export default function App() {
             title={"You're here"}
           />
         )}
+
+        {/* Map through the barsAndClubs array and render markers */}
+        {barsAndClubs.map((place, index) => (
+          <Marker
+            key={index}
+            coordinate={{
+              latitude: place.latitude,
+              longitude: place.longitude,
+            }}
+            title={place.name}
+          />
+        ))}
       </MapView>
     </View>
   );
