@@ -10,7 +10,7 @@ const barsAndClubs = [
       longitude: 10.397011135120348,
     },
     {
-      id: "3",
+      id: "2",
       name: "TAG",
       latitude: 63.432815984667016, 
       longitude: 10.398619420064612,

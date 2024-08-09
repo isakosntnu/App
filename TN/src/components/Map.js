@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Modal, Text, Button, TextInput, FlatList } from 'react-native';
+import { View, StyleSheet, Modal, Text, Button, TextInput, FlatList, Image } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import barsAndClubs from '../data/barsAndClubs';
-import { auth, database } from '../config/firebaseconfig';
+import { auth, database, storage } from '../config/firebaseconfig';
 import { ref, set, remove, onValue } from 'firebase/database';
+import { getDownloadURL } from 'firebase/storage';
 
 const Map = () => {
   const [location, setLocation] = useState(null);
@@ -14,6 +15,7 @@ const Map = () => {
   const [checkedInUsers, setCheckedInUsers] = useState([]);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [username, setUsername] = useState("");
+  const [profileImage, setProfileImage] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -27,11 +29,21 @@ const Map = () => {
       setLocation(location.coords);
     })();
 
-    // Set username from email
     if (auth.currentUser) {
       const email = auth.currentUser.email;
       const username = email.split('@')[0];
       setUsername(username);
+
+      const fetchProfileImage = async () => {
+        try {
+          const url = await getDownloadURL(ref(storage, `profilePictures/${auth.currentUser.uid}`));
+          setProfileImage(url);
+        } catch (error) {
+          console.log("No profile picture found.");
+        }
+      };
+
+      fetchProfileImage();
     }
   }, []);
 
@@ -57,6 +69,7 @@ const Map = () => {
           userId: auth.currentUser.uid,
           username: username,
           status: status,
+          profileImage: profileImage,  // Include profile image URL
           timestamp: Date.now(),
         };
 
@@ -155,11 +168,24 @@ const Map = () => {
             </>
           )}
           <Button title="Cancel" onPress={() => setModalVisible(false)} />
+          
+          {/* Display the list of checked-in users with their profile pictures */}
           <FlatList
-            data={checkedInUsers}
-            keyExtractor={(item) => item.userId}
-            renderItem={({ item }) => <Text>{item.username}</Text>}
-          />
+  data={checkedInUsers}
+  keyExtractor={(item) => item.userId}
+  renderItem={({ item }) => (
+    <View style={styles.userContainer}>
+      <Image 
+        source={{ uri: item.profileImageUrl || 'https://via.placeholder.com/150' }} 
+        style={styles.userImage} 
+        onError={() => console.log('Error loading image:', item.profileImageUrl)}
+      />
+      <Text>{item.username}</Text>
+    </View>
+  )}
+/>
+
+
         </View>
       </Modal>
     </View>
@@ -203,6 +229,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     width: '100%',
     paddingHorizontal: 10,
+  },
+  userContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  userImage: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginRight: 10,
   },
 });
 
