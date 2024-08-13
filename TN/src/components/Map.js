@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Modal, Text, Button, TextInput, FlatList, Image } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { View, StyleSheet, Modal, Text, Button, TextInput, FlatList, Image, TouchableOpacity } from 'react-native';
+import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
-import barsAndClubs from '../data/barsAndClubs';
-import { auth, database, storage } from '../config/firebaseconfig';
-import { ref, set, remove, onValue } from 'firebase/database';
+import barsAndClubs from '../data/barsAndClubs'; // Replace with your data file
+import { auth, database, storage } from '../config/firebaseconfig'; // Replace with your Firebase config
+import { push, ref, set, remove, onValue } from 'firebase/database';
 import { getDownloadURL } from 'firebase/storage';
 
 const Map = () => {
@@ -62,31 +62,41 @@ const Map = () => {
     });
   };
 
-  const handleCheckIn = async () => {
-    if (selectedBar && status) {
-      try {
-        const checkInData = {
-          userId: auth.currentUser.uid,
-          username: username,
-          status: status,
-          profileImage: profileImage,  // Include profile image URL
-          timestamp: Date.now(),
-        };
+  
+const handleCheckIn = async () => {
+  if (selectedBar && status) {
+    try {
+      const checkInData = {
+        userId: auth.currentUser.uid,
+        username: username,
+        profileImageUrl: profileImage,
+        barName: selectedBar.name,
+        note: status,
+        timestamp: Date.now(),
+      };
 
-        const userRef = ref(database, `checkins/${selectedBar.id}/${auth.currentUser.uid}`);
-        await set(userRef, checkInData);
+    
 
-        setModalVisible(false);
-        setStatus("");
-        alert("Check-in successful!");
-      } catch (error) {
-        console.error("Error checking in: ", error);
-        alert("Failed to check in. Please try again.");
-      }
-    } else {
-      alert("Please enter a status before checking in.");
+      // Save check-in data under the specific bar's check-ins
+      const userRef = ref(database, `checkins/${selectedBar.id}/${auth.currentUser.uid}`);
+      await set(userRef, checkInData);
+
+      // Push the check-in data to the posts (feed)
+      const postsRef = ref(database, 'posts');
+      await push(postsRef, checkInData);
+
+      setModalVisible(false);
+      setStatus("");
+      alert("Check-in successful!");
+    } catch (error) {
+      console.error("Error checking in: ", error);
+      alert("Failed to check in. Please try again.");
     }
-  };
+  } else {
+    alert("Please enter a status before checking in.");
+  }
+};
+  
 
   const handleCheckOut = async () => {
     if (selectedBar) {
@@ -138,9 +148,14 @@ const Map = () => {
               latitude: place.latitude,
               longitude: place.longitude,
             }}
-            title={place.name}
             onPress={() => handleMarkerPress(place)}
-          />
+          >
+            <Callout tooltip>
+              <View style={styles.calloutContainer}>
+                <Text style={styles.calloutText}>{place.name}</Text>
+              </View>
+            </Callout>
+          </Marker>
         ))}
       </MapView>
 
@@ -148,12 +163,14 @@ const Map = () => {
         animationType="slide"
         transparent={true}
         visible={modalVisible}
-        onRequestClose={() => {
-          setModalVisible(!modalVisible);
-        }}
+        onRequestClose={() => setModalVisible(!modalVisible)}
       >
         <View style={styles.modalView}>
-          <Text style={styles.modalText}>Check in at {selectedBar?.name}</Text>
+          <Image
+            source={{ uri: selectedBar?.image || 'https://via.placeholder.com/150' }}
+            style={styles.barImage}
+          />
+          <Text style={styles.modalTitle}>{selectedBar?.name}</Text>
           {isCheckedIn ? (
             <Button title="Leave" onPress={handleCheckOut} />
           ) : (
@@ -168,23 +185,21 @@ const Map = () => {
             </>
           )}
           <Button title="Cancel" onPress={() => setModalVisible(false)} />
-          
-          {/* Display the list of checked-in users with their profile pictures */}
+
           <FlatList
   data={checkedInUsers}
   keyExtractor={(item) => item.userId}
   renderItem={({ item }) => (
     <View style={styles.userContainer}>
       <Image 
-        source={{ uri: item.profileImageUrl || 'https://via.placeholder.com/150' }} 
+        source={{ uri: item.profileImage || 'https://via.placeholder.com/150' }} 
         style={styles.userImage} 
-        onError={() => console.log('Error loading image:', item.profileImageUrl)}
+        onError={() => console.log('Error loading image:', item.profileImage)}
       />
       <Text>{item.username}</Text>
     </View>
   )}
 />
-
 
         </View>
       </Modal>
@@ -203,11 +218,20 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  calloutContainer: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 5,
+  },
+  calloutText: {
+    color: '#333',
+    fontWeight: 'bold',
+  },
   modalView: {
     margin: 20,
     backgroundColor: 'white',
     borderRadius: 20,
-    padding: 35,
+    padding: 20,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
@@ -218,9 +242,16 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  modalText: {
-    marginBottom: 15,
-    textAlign: 'center',
+  modalTitle: {
+    marginBottom: 10,
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  barImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: 15,
+    marginBottom: 20,
   },
   input: {
     height: 40,
@@ -229,6 +260,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     width: '100%',
     paddingHorizontal: 10,
+    borderRadius: 5,
   },
   userContainer: {
     flexDirection: 'row',
@@ -240,6 +272,9 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 15,
     marginRight: 10,
+  },
+  usernameText: {
+    fontSize: 16,
   },
 });
 

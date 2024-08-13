@@ -4,7 +4,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import Map from './src/components/Map';  // Import Map component
+import Map from './src/components/Map';  // Make sure Map component is correctly imported
+import Feed from './src/components/Feed';  // Make sure Feed component is correctly imported
 import ProfileScreen from './src/screens/ProfileScreen';
 import AuthScreen from './src/screens/AuthScreen';
 import { auth } from './src/config/firebaseconfig';
@@ -55,6 +56,8 @@ export default function App() {
               iconName = 'map';
             } else if (route.name === 'Profile') {
               iconName = 'person';
+            } else if (route.name === 'Feed') {
+              iconName = 'list';
             }
 
             return <Ionicons name={iconName} size={size} color={color} />;
@@ -62,7 +65,8 @@ export default function App() {
         })}
       >
         <Tab.Screen name="Map" component={Map} />
-        <Tab.Screen name="Profile" component={ProfileScreen} />
+        <Tab.Screen name="Feed" component={Feed} />
+        <Tab.Screen name="Profile" component={ProfileScreen} /> 
       </Tab.Navigator>
     </NavigationContainer>
   );
