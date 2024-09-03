@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Modal, Text, Button, TextInput, FlatList, Image, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Modal, Text, TextInput, FlatList, Image, TouchableOpacity, Button } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import barsAndClubs from '../data/barsAndClubs'; // Replace with your data file
 import { auth, database, storage } from '../config/firebaseconfig'; // Replace with your Firebase config
 import { push, ref, set, remove, onValue } from 'firebase/database';
-import { getDownloadURL } from 'firebase/storage';
+import { getDownloadURL, ref as storageRef } from 'firebase/storage';
 
 const Map = () => {
   const [location, setLocation] = useState(null);
@@ -36,7 +36,7 @@ const Map = () => {
 
       const fetchProfileImage = async () => {
         try {
-          const url = await getDownloadURL(ref(storage, `profilePictures/${auth.currentUser.uid}`));
+          const url = await getDownloadURL(storageRef(storage, `profilePictures/${auth.currentUser.uid}`));
           setProfileImage(url);
         } catch (error) {
           console.log("No profile picture found.");
@@ -55,48 +55,59 @@ const Map = () => {
 
   const fetchCheckedInUsers = (barId) => {
     const checkinsRef = ref(database, `checkins/${barId}`);
-    onValue(checkinsRef, (snapshot) => {
+    onValue(checkinsRef, async (snapshot) => {
       const users = snapshot.val() ? Object.values(snapshot.val()) : [];
-      setCheckedInUsers(users);
+
+      // Fetch profile pictures for each user if not already available
+      const usersWithProfilePictures = await Promise.all(users.map(async (user) => {
+        if (!user.profileImageUrl) {
+          try {
+            const url = await getDownloadURL(storageRef(storage, `profilePictures/${user.userId}`));
+            return { ...user, profileImageUrl: url };
+          } catch (error) {
+            console.log(`Error fetching profile image for user ${user.username}:`, error);
+            return user;  // Return the user without the image if there's an error
+          }
+        }
+        return user;
+      }));
+
+      setCheckedInUsers(usersWithProfilePictures);
       setIsCheckedIn(users.some(user => user.userId === auth.currentUser.uid));
     });
   };
 
-  
-const handleCheckIn = async () => {
-  if (selectedBar && status) {
-    try {
-      const checkInData = {
-        userId: auth.currentUser.uid,
-        username: username,
-        profileImageUrl: profileImage,
-        barName: selectedBar.name,
-        note: status,
-        timestamp: Date.now(),
-      };
+  const handleCheckIn = async () => {
+    if (selectedBar && status) {
+      try {
+        const checkInData = {
+          userId: auth.currentUser.uid,
+          username: username,
+          profileImageUrl: profileImage,
+          barName: selectedBar.name,
+          note: status,
+          timestamp: Date.now(),
+        };
 
-    
+        // Save check-in data under the specific bar's check-ins
+        const userRef = ref(database, `checkins/${selectedBar.id}/${auth.currentUser.uid}`);
+        await set(userRef, checkInData);
 
-      // Save check-in data under the specific bar's check-ins
-      const userRef = ref(database, `checkins/${selectedBar.id}/${auth.currentUser.uid}`);
-      await set(userRef, checkInData);
+        // Push the check-in data to the posts (feed)
+        const postsRef = ref(database, 'posts');
+        await push(postsRef, checkInData);
 
-      // Push the check-in data to the posts (feed)
-      const postsRef = ref(database, 'posts');
-      await push(postsRef, checkInData);
-
-      setModalVisible(false);
-      setStatus("");
-      alert("Check-in successful!");
-    } catch (error) {
-      console.error("Error checking in: ", error);
-      alert("Failed to check in. Please try again.");
+        setModalVisible(false);
+        setStatus("");
+        alert("Check-in successful!");
+      } catch (error) {
+        console.error("Error checking in: ", error);
+        alert("Failed to check in. Please try again.");
+      }
+    } else {
+      alert("Please enter a status before checking in.");
     }
-  } else {
-    alert("Please enter a status before checking in.");
-  }
-};
-  
+  };
 
   const handleCheckOut = async () => {
     if (selectedBar) {
@@ -187,26 +198,23 @@ const handleCheckIn = async () => {
           <Button title="Cancel" onPress={() => setModalVisible(false)} />
 
           <FlatList
-  data={checkedInUsers}
-  keyExtractor={(item) => item.userId}
-  renderItem={({ item }) => (
-    <View style={styles.userContainer}>
-      <Image 
-        source={{ uri: item.profileImage || 'https://via.placeholder.com/150' }} 
-        style={styles.userImage} 
-        onError={() => console.log('Error loading image:', item.profileImage)}
-      />
-      <Text>{item.username}</Text>
-    </View>
-  )}
-/>
-
+            data={checkedInUsers}
+            keyExtractor={(item) => item.userId}
+            renderItem={({ item }) => (
+              <View style={styles.userContainer}>
+                <Image 
+                  source={{ uri: item.profileImageUrl || 'https://via.placeholder.com/150' }} 
+                  style={styles.userImage} 
+                />
+                <Text>{item.username}</Text>
+              </View>
+            )}
+          />
         </View>
       </Modal>
     </View>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,

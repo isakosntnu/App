@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, Image, TextInput, TouchableOpacity } from 'react-native';
-import { ref as dbRef, onValue, push, remove, set } from 'firebase/database';
+import { ref as dbRef, onValue, push, remove, set, get, child } from 'firebase/database';
 import { auth, database } from '../config/firebaseconfig';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -9,11 +9,25 @@ const Feed = () => {
   const [comment, setComment] = useState('');
 
   useEffect(() => {
-    const postsRef = dbRef(database, 'posts');
-    onValue(postsRef, (snapshot) => {
-      const data = snapshot.val() ? Object.entries(snapshot.val()) : [];
-      setPosts(data.reverse()); // Reverse to show the latest posts first
-    });
+    const fetchPostsWithProfilePictures = async () => {
+      const postsRef = dbRef(database, 'posts');
+      onValue(postsRef, async (snapshot) => {
+        const data = snapshot.val() ? Object.entries(snapshot.val()) : [];
+        
+        // Fetch profile pictures for each post
+        const postsWithPictures = await Promise.all(
+          data.map(async ([postId, post]) => {
+            const profileSnapshot = await get(child(dbRef(database), `users/${post.userId}/profileImageUrl`));
+            const profileImageUrl = profileSnapshot.exists() ? profileSnapshot.val() : null;
+            return [postId, { ...post, profileImageUrl }];
+          })
+        );
+        
+        setPosts(postsWithPictures.reverse()); // Reverse to show the latest posts first
+      });
+    };
+
+    fetchPostsWithProfilePictures();
   }, []);
 
   const handleLikePost = async (postId, currentLikes = {}) => {
@@ -21,10 +35,8 @@ const Feed = () => {
     const postRef = dbRef(database, `posts/${postId}/likes/${userId}`);
     
     if (currentLikes[userId]) {
-      // User has already liked, remove the like
       await remove(postRef);
     } else {
-      // Add the like
       await set(postRef, true);
     }
   };
