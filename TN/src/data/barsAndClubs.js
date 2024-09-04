@@ -24,6 +24,20 @@ const barsAndClubs = [
       longitude: 10.41195579361662,
       image: "https://restaurant24.no/wp-content/uploads/2022/03/275998596_3133131320267408_3781470697959309669_n-1200x960.jpg"
     },
+    {
+      id: "4",
+      name: "Samfundet",
+      latitude: 63.422414, 
+      longitude: 10.395008,
+      image: "https://restaurant24.no/wp-content/uploads/2022/03/275998596_3133131320267408_3781470697959309669_n-1200x960.jpg"
+    },
+    {
+      id: "5",
+      name: "Studio 26",
+      latitude: 63.433937, 
+      longitude: 10.396957,
+      image: "https://restaurant24.no/wp-content/uploads/2022/03/275998596_3133131320267408_3781470697959309669_n-1200x960.jpg"
+    }
 
   ];
   
